@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>悠遊山林 · 點歌播放器</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --forest-deep: #1a2e1a;
+      --forest-mid:  #2d5a27;
+      --moss:        #4a7c3f;
+      --leaf:        #7ab648;
+      --mist:        #d6e8c8;
+      --cream:       #f5f0e8;
+      --text-dark:   #1a1a1a;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--forest-deep);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Noto Sans TC', sans-serif;
+      overflow-x: hidden;
+      overflow-y: auto;
+      position: relative;
+      padding: 24px 0;
+    }
+
+    .bg-leaves {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .leaf-svg {
+      position: absolute;
+      opacity: 0.07;
+      animation: sway 8s ease-in-out infinite;
+    }
+    .leaf-svg:nth-child(1) { top: 5%;  left: 3%;  width: 180px; animation-delay: 0s;   animation-duration: 9s; }
+    .leaf-svg:nth-child(2) { top: 10%; right: 5%; width: 140px; animation-delay: 2s;   animation-duration: 7s; transform: scaleX(-1); }
+    .leaf-svg:nth-child(3) { bottom: 8%; left: 6%; width: 200px; animation-delay: 1s;  animation-duration: 11s; }
+    .leaf-svg:nth-child(4) { bottom: 5%; right: 4%; width: 160px; animation-delay: 3s; animation-duration: 8s; transform: scaleX(-1); }
+    .leaf-svg:nth-child(5) { top: 45%; left: 0%;  width: 120px; animation-delay: 4s;  animation-duration: 10s; }
+
+    @keyframes sway {
+      0%, 100% { transform: rotate(-5deg); }
+      50%       { transform: rotate(5deg); }
+    }
+    .leaf-svg:nth-child(2) { animation-name: swayMirror; }
+    .leaf-svg:nth-child(4) { animation-name: swayMirror; }
+    @keyframes swayMirror {
+      0%, 100% { transform: scaleX(-1) rotate(-5deg); }
+      50%       { transform: scaleX(-1) rotate(5deg); }
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--cream);
+      border-radius: 20px;
+      padding: 44px 44px 36px;
+      width: min(440px, 92vw);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06);
+    }
+
+    /* ── 標頭 ── */
+    .card-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .icon-mountain {
+      margin: 0 auto 14px;
+      width: 54px;
+      height: 54px;
+      background: var(--forest-mid);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-mountain svg { width: 30px; height: 30px; }
+    .card-header h1 {
+      font-family: 'Noto Serif TC', serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--forest-deep);
+      letter-spacing: 0.08em;
+    }
+    .card-header p {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #6b7c61;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── 播放狀態列 ── */
+    .now-playing {
+      background: var(--forest-deep);
+      color: var(--mist);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 50px;
+      transition: background 0.3s;
+    }
+    .now-playing.active { background: var(--forest-mid); }
+
+    .eq-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .eq-bar {
+      width: 4px;
+      background: var(--leaf);
+      border-radius: 2px;
+      height: 4px;
+    }
+    .now-playing.active .eq-bar:nth-child(1) { animation: eq1 0.7s ease-in-out infinite; }
+    .now-playing.active .eq-bar:nth-child(2) { animation: eq2 0.9s ease-in-out infinite; }
+    .now-playing.active .eq-bar:nth-child(3) { animation: eq1 0.6s ease-in-out infinite 0.2s; }
+    .now-playing.active .eq-bar:nth-child(4) { animation: eq2 0.8s ease-in-out infinite 0.1s; }
+    @keyframes eq1 { 0%,100%{height:4px} 50%{height:18px} }
+    @keyframes eq2 { 0%,100%{height:10px} 50%{height:4px} }
+
+    .now-playing-text { flex:1; font-size:0.82rem; letter-spacing:0.03em; line-height:1.4; }
+    .now-playing-label {
+      font-size: 0.68rem;
+      color: var(--leaf);
+      letter-spacing: 0.1em;
+      margin-bottom: 2px;
+    }
+    .now-playing.active .now-playing-label { color: #a8d988; }
+
+    /* ── 歌詞區塊 ── */
+    .lyrics-box {
+      background: var(--forest-deep);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      height: 148px;
+      overflow: hidden;
+      position: relative;
+      display: none;           /* 預設隱藏，播第二首才顯示 */
+    }
+    .lyrics-box.visible { display: block; }
+
+    /* 上下漸層遮罩 */
+    .lyrics-box::before,
+    .lyrics-box::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      height: 32px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .lyrics-box::before { top: 0;    background: linear-gradient(to bottom, var(--forest-deep), transparent); }
+    .lyrics-box::after  { bottom: 0; background: linear-gradient(to top,   var(--forest-deep), transparent); }
+
+    .lyrics-scroll {
+      transition: transform 0.8s cubic-bezier(0.25,0.46,0.45,0.94);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding-top: 52px;   /* 讓第一句從中間出現 */
+    }
+
+    .lyric-line {
+      font-family: 'Noto Serif TC', serif;
+      font-size: 1.05rem;
+      color: rgba(214,232,200,0.35);
+      letter-spacing: 0.12em;
+      line-height: 2;
+      text-align: center;
+      transition: color 0.6s, font-size 0.6s, opacity 0.6s;
+      white-space: nowrap;
+    }
+    .lyric-line.active {
+      color: #ffffff;
+      font-size: 1.18rem;
+      text-shadow: 0 0 18px rgba(122,182,72,0.7), 0 0 6px rgba(122,182,72,0.4);
+    }
+    .lyric-line.prev {
+      color: rgba(214,232,200,0.6);
+    }
+
+    /* ── 進度條 ── */
+    .progress-wrap { margin-bottom: 20px; }
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background: #d0cac0;
+      border-radius: 2px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--moss), var(--leaf));
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.3s linear;
+    }
+    .progress-times {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: #8a9080;
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── 音量 ── */
+    .volume-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 26px;
+    }
+    .volume-row label { font-size:0.75rem; color:#6b7c61; letter-spacing:0.05em; flex-shrink:0; }
+    .volume-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--moss) var(--vol, 80%), #d0cac0 var(--vol, 80%));
+      outline: none;
+      cursor: pointer;
+    }
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--moss);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      cursor: pointer;
+    }
+    .volume-slider::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--moss);
+      border: none; cursor: pointer;
+    }
+    .vol-val { font-size:0.72rem; color:#6b7c61; width:30px; text-align:right; }
+
+    /* ── 歌曲按鈕 ── */
+    .song-buttons { display:flex; flex-direction:column; gap:14px; }
+
+    .song-btn {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: white;
+      border: 2px solid #ddd8ce;
+      border-radius: 14px;
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      text-align: left;
+      font-family: inherit;
+      position: relative;
+      overflow: hidden;
+    }
+    .song-btn:hover { border-color:var(--moss); transform:translateY(-2px); box-shadow:0 6px 20px rgba(45,90,39,0.15); }
+    .song-btn.playing { border-color:var(--leaf); background:#f0f7eb; }
+
+    .song-num {
+      position: relative; z-index: 1;
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: var(--mist);
+      border: 2px solid var(--moss);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Noto Serif TC', serif;
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--forest-mid);
+      flex-shrink: 0;
+      transition: all 0.22s;
+    }
+    .song-btn.playing .song-num { background:var(--forest-mid); color:white; border-color:var(--forest-mid); }
+
+    .song-info { position:relative; z-index:1; flex:1; }
+    .song-title { font-size:0.95rem; font-weight:500; color:var(--text-dark); letter-spacing:0.04em; line-height:1.3; }
+    .song-file  { font-size:0.72rem; color:#9aab90; margin-top:3px; letter-spacing:0.02em; }
+
+    .play-icon { position:relative; z-index:1; flex-shrink:0; color:var(--moss); transition:color 0.22s; }
+    .song-btn.playing .play-icon { color:var(--forest-mid); }
+    .song-btn:hover .play-icon   { color:var(--leaf); }
+
+    /* ── 停止按鈕 ── */
+    .stop-btn {
+      margin-top: 18px;
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1.5px solid #ccc8be;
+      border-radius: 10px;
+      color: #8a9080;
+      font-size: 0.8rem;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.06em;
+      transition: all 0.2s;
+    }
+    .stop-btn:hover { border-color:#b0aa9e; color:#5a6050; background:#f0ece5; }
+    .stop-btn:disabled { opacity:0.35; cursor:default; }
+  </style>
+</head>
+<body>
+
+<!-- 背景葉片 -->
+<div class="bg-leaves">
+  <svg class="leaf-svg" viewBox="0 0 200 300" fill="#7ab648" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 10 C60 60 20 120 40 200 C60 260 140 270 160 200 C180 130 150 60 100 10Z"/>
+    <line x1="100" y1="10" x2="100" y2="270" stroke="#4a7c3f" stroke-width="3"/>
+  </svg>
+  <svg class="leaf-svg" viewBox="0 0 200 300" fill="#7ab648" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 10 C60 60 20 120 40 200 C60 260 140 270 160 200 C180 130 150 60 100 10Z"/>
+    <line x1="100" y1="10" x2="100" y2="270" stroke="#4a7c3f" stroke-width="3"/>
+  </svg>
+  <svg class="leaf-svg" viewBox="0 0 200 300" fill="#7ab648" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 10 C60 60 20 120 40 200 C60 260 140 270 160 200 C180 130 150 60 100 10Z"/>
+    <line x1="100" y1="10" x2="100" y2="270" stroke="#4a7c3f" stroke-width="3"/>
+  </svg>
+  <svg class="leaf-svg" viewBox="0 0 200 300" fill="#7ab648" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 10 C60 60 20 120 40 200 C60 260 140 270 160 200 C180 130 150 60 100 10Z"/>
+    <line x1="100" y1="10" x2="100" y2="270" stroke="#4a7c3f" stroke-width="3"/>
+  </svg>
+  <svg class="leaf-svg" viewBox="0 0 200 300" fill="#7ab648" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 10 C60 60 20 120 40 200 C60 260 140 270 160 200 C180 130 150 60 100 10Z"/>
+    <line x1="100" y1="10" x2="100" y2="270" stroke="#4a7c3f" stroke-width="3"/>
+  </svg>
+</div>
+
+<div class="card">
+  <!-- 標頭 -->
+  <div class="card-header">
+    <div class="icon-mountain">
+      <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 24L11 10L15 16L19 11L27 24H3Z" fill="#7ab648" stroke="#a8d988" stroke-width="1"/>
+        <path d="M19 11L22 15L27 24H14L19 11Z" fill="#4a7c3f"/>
+        <circle cx="22" cy="7" r="2.5" fill="#f5c842" opacity="0.9"/>
+      </svg>
+    </div>
+    <h1>悠遊山林</h1>
+    <p>隊歌點播播放器</p>
+  </div>
+
+  <!-- 播放狀態列 -->
+  <div class="now-playing" id="nowPlaying">
+    <div class="eq-bars">
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+    </div>
+    <div class="now-playing-text">
+      <div class="now-playing-label" id="npLabel">待機中</div>
+      <div id="npTitle" style="font-size:0.88rem;">請選擇下方歌曲播放</div>
+    </div>
+  </div>
+
+  <!-- 動態歌詞區塊（第二首才顯示） -->
+  <div class="lyrics-box" id="lyricsBox">
+    <div class="lyrics-scroll" id="lyricsScroll"></div>
+  </div>
+
+  <!-- 進度條 -->
+  <div class="progress-wrap">
+    <div class="progress-track" id="progressTrack">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-times">
+      <span id="timeNow">0:00</span>
+      <span id="timeTot">0:00</span>
+    </div>
+  </div>
+
+  <!-- 音量 -->
+  <div class="volume-row">
+    <label>音量</label>
+    <input type="range" class="volume-slider" id="volSlider" min="0" max="100" value="80" />
+    <span class="vol-val" id="volVal">80%</span>
+  </div>
+
+  <!-- 歌曲按鈕 -->
+  <div class="song-buttons">
+    <button class="song-btn" id="btn1" onclick="playSong(0)">
+      <div class="song-num">一</div>
+      <div class="song-info">
+        <div class="song-title">悠遊山林隊歌 第一首</div>
+        <div class="song-file">悠遊山林隊歌1S.mp3</div>
+      </div>
+      <div class="play-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor">
+          <circle cx="11" cy="11" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <polygon points="9,7 16,11 9,15" fill="currentColor"/>
+        </svg>
+      </div>
+    </button>
+
+    <button class="song-btn" id="btn2" onclick="playSong(1)">
+      <div class="song-num">二</div>
+      <div class="song-info">
+        <div class="song-title">悠遊山林隊歌 第二首</div>
+        <div class="song-file">悠遊山林隊歌2S.mp3</div>
+      </div>
+      <div class="play-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor">
+          <circle cx="11" cy="11" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <polygon points="9,7 16,11 9,15" fill="currentColor"/>
+        </svg>
+      </div>
+    </button>
+  </div>
+
+  <button class="stop-btn" id="stopBtn" disabled onclick="stopSong()">⏹ 停止播放</button>
+</div>
+
+<audio id="audioPlayer"></audio>
+
+<script>
+  /* ── LRC 歌詞資料（第二首） ── */
+  const LRC_SONG2 = [
+    { time: 15.52, text: '悠然自得好自在，' },
+    { time: 19.22, text: '遊山玩水最怡情，' },
+    { time: 22.90, text: '山海美景我欣賞，' },
+    { time: 26.66, text: '林林總總真健康。' },
+    { time: 30.16, text: '不怕日曬刮風或雨淋，' },
+    { time: 33.88, text: '互相扶持照應真性情，' },
+    { time: 37.56, text: '歡笑娛樂，開心滿懷，' },
+    { time: 41.27, text: '洗涤心境，溫馨自在。' },
+    { time: 45.21, text: '人生難得相聚首，' },
+    { time: 48.69, text: '悠遊有情天地間，' },
+    { time: 52.41, text: '此番緣份人間好，' },
+    { time: 56.09, text: '就把山林任悠遊。' },
+  ];
+
+  const songs = [
+    { file: '悠遊山林隊歌1S.mp3', title: '悠遊山林隊歌 第一首', lyrics: null },
+    { file: '悠遊山林隊歌2S.mp3', title: '悠遊山林隊歌 第二首', lyrics: LRC_SONG2 },
+  ];
+
+  const audio         = document.getElementById('audioPlayer');
+  const nowPlaying    = document.getElementById('nowPlaying');
+  const npLabel       = document.getElementById('npLabel');
+  const npTitle       = document.getElementById('npTitle');
+  const progressFill  = document.getElementById('progressFill');
+  const progressTrack = document.getElementById('progressTrack');
+  const timeNow       = document.getElementById('timeNow');
+  const timeTot       = document.getElementById('timeTot');
+  const volSlider     = document.getElementById('volSlider');
+  const volVal        = document.getElementById('volVal');
+  const stopBtn       = document.getElementById('stopBtn');
+  const btns          = [document.getElementById('btn1'), document.getElementById('btn2')];
+  const lyricsBox     = document.getElementById('lyricsBox');
+  const lyricsScroll  = document.getElementById('lyricsScroll');
+
+  let currentIdx   = -1;
+  let lyricLines   = [];   // DOM 節點陣列
+  let activeLyricIdx = -1;
+
+  /* ── 時間格式化 ── */
+  function fmt(s) {
+    if (isNaN(s) || !isFinite(s)) return '0:00';
+    return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+  }
+
+  /* ── 建立歌詞 DOM ── */
+  function buildLyrics(lrc) {
+    lyricsScroll.innerHTML = '';
+    lyricLines = [];
+    activeLyricIdx = -1;
+    if (!lrc) return;
+    lrc.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'lyric-line';
+      el.textContent = item.text;
+      lyricsScroll.appendChild(el);
+      lyricLines.push(el);
+    });
+  }
+
+  /* ── 更新高亮歌詞 ── */
+  function updateLyrics(currentTime) {
+    const lrc = songs[currentIdx]?.lyrics;
+    if (!lrc) return;
+
+    let newIdx = -1;
+    for (let i = lrc.length - 1; i >= 0; i--) {
+      if (currentTime >= lrc[i].time) { newIdx = i; break; }
+    }
+    if (newIdx === activeLyricIdx) return;
+    activeLyricIdx = newIdx;
+
+    lyricLines.forEach((el, i) => {
+      el.classList.remove('active', 'prev');
+      if (i === newIdx)     el.classList.add('active');
+      if (i === newIdx - 1) el.classList.add('prev');
+    });
+
+    /* 捲動：用 active 行實際 offsetTop 置中對齊容器中心 */
+    if (newIdx >= 0 && lyricLines[newIdx]) {
+      const activeEl   = lyricLines[newIdx];
+      const boxH       = lyricsBox.clientHeight;          // 容器可視高度
+      const lineTop    = activeEl.offsetTop;              // 行距頂部距離
+      const lineH      = activeEl.offsetHeight;           // 行本身高度
+      const offset     = lineTop - (boxH / 2) + (lineH / 2) - 52; // 52 = padding-top
+      lyricsScroll.style.transform = `translateY(${-Math.max(0, offset)}px)`;
+    } else if (newIdx === -1) {
+      lyricsScroll.style.transform = 'translateY(0px)';
+    }
+  }
+
+  /* ── 播放歌曲 ── */
+  function playSong(idx) {
+    /* 同一首：暫停 / 繼續 */
+    if (currentIdx === idx && !audio.paused) {
+      audio.pause();
+      nowPlaying.classList.remove('active');
+      npLabel.textContent = '已暫停';
+      return;
+    }
+    if (currentIdx === idx && audio.paused && audio.src) {
+      audio.play();
+      nowPlaying.classList.add('active');
+      npLabel.textContent = '播放中';
+      return;
+    }
+
+    /* 換新歌 */
+    currentIdx = idx;
+    audio.src  = songs[idx].file;
+    audio.volume = volSlider.value / 100;
+    audio.play().catch(() => {
+      npLabel.textContent = '無法載入';
+      npTitle.textContent = '請確認 MP3 與 HTML 放在同一資料夾';
+    });
+
+    npTitle.textContent = songs[idx].title;
+    npLabel.textContent = '播放中';
+    nowPlaying.classList.add('active');
+    stopBtn.disabled = false;
+    btns.forEach((b, i) => b.classList.toggle('playing', i === idx));
+
+    /* 歌詞區塊 */
+    const hasLyrics = !!songs[idx].lyrics;
+    lyricsBox.classList.toggle('visible', hasLyrics);
+    buildLyrics(songs[idx].lyrics);
+    lyricsScroll.style.transform = 'translateY(0px)';
+  }
+
+  /* ── 停止 ── */
+  function stopSong() {
+    audio.pause();
+    audio.currentTime = 0;
+    currentIdx = -1;
+    nowPlaying.classList.remove('active');
+    npLabel.textContent = '待機中';
+    npTitle.textContent = '請選擇下方歌曲播放';
+    progressFill.style.width = '0%';
+    timeNow.textContent = '0:00';
+    timeTot.textContent = '0:00';
+    stopBtn.disabled = true;
+    btns.forEach(b => b.classList.remove('playing'));
+    lyricsBox.classList.remove('visible');
+    lyricsScroll.innerHTML = '';
+    lyricLines = [];
+    activeLyricIdx = -1;
+  }
+
+  /* ── 時間更新 ── */
+  audio.addEventListener('timeupdate', () => {
+    if (audio.duration) {
+      progressFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      timeNow.textContent = fmt(audio.currentTime);
+      timeTot.textContent = fmt(audio.duration);
+    }
+    if (currentIdx >= 0 && songs[currentIdx].lyrics) {
+      updateLyrics(audio.currentTime);
+    }
+  });
+
+  /* ── 播完 ── */
+  audio.addEventListener('ended', () => {
+    nowPlaying.classList.remove('active');
+    npLabel.textContent = '播放完畢';
+    btns.forEach(b => b.classList.remove('playing'));
+    stopBtn.disabled = true;
+    currentIdx = -1;
+  });
+
+  /* ── 點進度條跳轉 ── */
+  progressTrack.addEventListener('click', e => {
+    if (!audio.duration) return;
+    const rect  = progressTrack.getBoundingClientRect();
+    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+  });
+
+  /* ── 音量 ── */
+  volSlider.addEventListener('input', () => {
+    const v = volSlider.value;
+    audio.volume = v / 100;
+    volVal.textContent = v + '%';
+    volSlider.style.setProperty('--vol', v + '%');
+  });
+  volSlider.style.setProperty('--vol', '80%');
+</script>
+</body>
+</html>
